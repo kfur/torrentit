@@ -1,2 +1,2 @@
 # torrentit
-Telegram bot for download torrents
+Telegram bot for download torrents without persistent storage
