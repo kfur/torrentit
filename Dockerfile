@@ -1,7 +1,7 @@
 FROM ubuntu:18.04
 
 COPY build-lt.sh /root/
-RUN chmod +x /root/build.sh && /root/build.sh
+RUN chmod +x /root/build-lt.sh && /root/build-lt.sh
 
 
 FROM python:3.8-buster
