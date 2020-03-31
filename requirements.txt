@@ -2,6 +2,10 @@ git+git://github.com/kfur/Telethon@libtorrent
 git+git://github.com/kfur/python-zipstream@master
 cryptg==0.2.post0
 aiohttp==3.6.2
+brotlipy==0.7.0
+cchardet==2.1.6
+pycares==3.1.1
+aiodns==2.0.0
 urlextract==0.14.0
 base58==1.0.3
 logaugment==0.1.3
