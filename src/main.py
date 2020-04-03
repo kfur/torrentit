@@ -2,11 +2,12 @@
 
 from telethon import TelegramClient, events, Button
 from telethon.tl.types import InputPeerChat, MessageMediaWebPage, PeerUser
-from telethon.tl.types import DocumentAttributeVideo, DocumentAttributeFilename
+from telethon.tl.types import DocumentAttributeFilename, DocumentAttributeVideo, DocumentAttributeSticker, DocumentAttributeAudio
 import traceback
 import typing
 
 import libtorrent as lt
+from session import SessionManager
 import asyncio
 import re
 from urlextract import URLExtract
@@ -23,10 +24,10 @@ import const
 bot_token = os.getenv('BOT_TOKEN')
 api_id = int(os.getenv('API_ID'))
 api_hash = os.getenv('API_HASH')
+session_manager = SessionManager()
 
 client = TelegramClient('toby', api_id, api_hash)
 bot = TelegramClient('bot', api_id, api_hash).start(bot_token=bot_token)
-session = None
 
 in_progress_users = set()
 tasks = dict()
@@ -666,7 +667,7 @@ async def get_torrent_from_event(log, event):
 class NoMetadataError(Exception):
     pass
 
-async def get_torrent_handle(log, torrent):
+async def get_torrent_handle(log, torrent, session):
     th = None
     wait_metatada_timeout = 60
     if isinstance(torrent, str):
@@ -710,48 +711,29 @@ async def upload_torrent_content(file, userid, log):
     await client.send_file(BOT_ID, uploaded_file, caption=str(userid))
 
 
-def setup_session(session):
-    ses_settings = session.get_settings()
-    ses_settings['cache_size'] = 1024
-    ses_settings['active_downloads'] = 40
-
-    # ses_settings['alert_mask'] = lt.alert.category_t.torrent_log_notification | lt.alert.category_t.peer_log_notification
-
-    ses_settings['close_redundant_connections'] = False
-    ses_settings['prioritize_partial_pieces'] = True
-    ses_settings['support_share_mode'] = False
-    session.apply_settings(ses_settings)
-
-    session.add_dht_router("router.utorrent.com", 6881)
-    session.add_dht_router("dht.transmissionbt.com", 6881)
-    session.add_dht_router("router.bitcomet.com", 6881)
-    session.add_dht_router("dht.aelitis.com", 6881)
-    session.start_dht()
-
 async def periodic_cleanup():
     period = 60
     while True:
         try:
             await asyncio.sleep(period)
             delete_keys = []
-            for k, v in pending_torrents.items():
+            for client_id, v in pending_torrents.items():
                 if type(v) is tuple and (time.time() - v[1]) > period:
                     th = v[0][0].torrent_handler
                     l.info('Removing pending torrent {} after incativity timeout'.format(th.name()[:30]))
+                    session = session_manager.get_session(client_id)
                     session.remove_torrent(th)
-                    delete_keys.append(k)
+                    session_manager.del_session(client_id)
+                    delete_keys.append(client_id)
 
-            for k in delete_keys:
-                del pending_torrents[k]
+            for client_id in delete_keys:
+                del pending_torrents[client_id]
         except Exception as e:
             l.exception(e)
 
 
 if __name__ == '__main__':
     try:
-        session = lt.session({'listen_interfaces': '0.0.0.0:6881'})
-        setup_session(session)
-
         client.start()
         client.loop.create_task(periodic_cleanup())
         client.run_until_disconnected()
