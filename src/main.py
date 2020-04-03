@@ -427,17 +427,20 @@ async def share_content_with_user(event):
     try:
         if event.media is not None:
             l.debug('attrs ' + str(event.message.media.document.attributes))
-            doc_name = event.message.media.document.attributes[0].file_name
-            if 'zip' not in doc_name:
-                event.message.media.document.attributes[0].file_name = doc_name[:len(doc_name) - 4] + '.zip' + doc_name[
-                                                                                                               len(
-                                                                                                                   doc_name) - 4:]
+            force_doc = False
+            new_attrs = []
+            for attr in event.message.media.document.attributes:
+                if isinstance(attr, DocumentAttributeVideo) or isinstance(attr, DocumentAttributeSticker):
+                    force_doc = True
+                else:
+                    new_attrs.append(attr)
             to_id = int(event.message.message)
-            await bot.send_file(to_id, event.message.file.id)
+            print('new_attrs ', new_attrs)
+            await bot.send_file(to_id, event.message.file.id, force_document=True)
         else:
             l.error("no media from client")
-    except Exception as e:
-        l.exception(e)
+    except Exception as _e:
+        l.exception(_e)
     return
 
 
