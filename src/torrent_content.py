@@ -109,7 +109,7 @@ class ZipTorrentContentFile(Reader):
         self.must_next_file = False
         self.zip_parts = m.ceil(self.real_size / const.TG_MAX_FILE_SIZE)
         self.downloaded_bytes_count = 0
-        self.last_percent = 0
+        self.last_percent = -1
         self.should_close = False
         self.zipiter = iter(self.zipstream)
         self.is_finished = False
@@ -269,12 +269,12 @@ class ZipTorrentContentFile(Reader):
         self.downloaded_bytes_count += len(resp)
         if self.real_size != 0:
             perc = m.floor((self.downloaded_bytes_count*100) / self.real_size)
-            self.log.info('Progress {}%'.format(perc))
             if perc != self.last_percent:
                 try:
+                    self.log.info('Progress {}%'.format(perc))
+                    self.last_percent = perc
                     await self.progress_callback(perc)
                     # await self.event.edit(self.progress_text.format(perc), buttons=[Button.inline('Cancel', str(self.event.sender_id))])
-                    self.last_percent = perc
                 except Exception as e:
                     self.log.error(e)
 
@@ -373,7 +373,7 @@ class AsyncTorrentContentFileWrapper(Reader):
         self.progress_callback = progress_callback
         self.uploaded_sum = uploaded_sum
         self.files_size_sum = files_size_sum
-        self.last_percent = 0
+        self.last_percent = -1
         self.log = log
 
     async def read(self, n: int = -1) -> bytes:
@@ -419,9 +419,9 @@ class AsyncTorrentContentFileWrapper(Reader):
         if perc != self.last_percent:
             self.log.info('Progress {}%'.format(perc))
             try:
+                self.last_percent = perc
                 await self.progress_callback(perc)
                 # await self.event.edit(self.progress_text.format(perc), buttons=[Button.inline('Cancel', str(self.event.sender_id))])
-                self.last_percent = perc
             except Exception as e:
                 self.log.error(e)
 
