@@ -20,6 +20,7 @@ import logger as _log
 import fex
 import torrent_content as tc
 import const
+import fast_telethon
 
 bot_token = os.getenv('BOT_TOKEN')
 api_id = int(os.getenv('API_ID'))
@@ -701,13 +702,23 @@ async def get_torrent_handle(log, torrent, session):
 
 
 BOT_ID = os.getenv('BOT_ID')
+TG_PARALLEL_CONNECTION_BUDGET = 24
 
 async def upload_torrent_content(file, userid, log):
+    global TG_PARALLEL_CONNECTION_BUDGET
     log.info("trying upload {} with size = {}".format(file.name, file.size))
-
-    uploaded_file = await client.upload_file(file, file_size=file.size, file_name=file.name)
-    # await client.send_file(BOT_ID, uploaded_file,
-    #                       attributes=(DocumentAttributeFilename(file_name=file.name),), caption=str(userid))
+    if TG_PARALLEL_CONNECTION_BUDGET > 0 and file.size > 50 * 1024 * 1024:
+        TG_PARALLEL_CONNECTION_BUDGET -= 3
+        try:
+            uploaded_file = await fast_telethon.upload_file(client,
+                                                            file,
+                                                            file_size=file.size,
+                                                            file_name=file.name,
+                                                            max_connection=3)
+        finally:
+            TG_PARALLEL_CONNECTION_BUDGET += 3
+    else:
+        uploaded_file = await client.upload_file(file, file_size=file.size, file_name=file.name)
     await client.send_file(BOT_ID, uploaded_file, caption=str(userid))
 
 
