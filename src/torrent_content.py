@@ -89,15 +89,15 @@ class ZipTorrentContentFile(Reader):
             file_names_sum += len(f.info.fullpath.encode('utf'))
 
         #self.real_size = 21438417 + 205 + 6 #len(files) * (30 + 16 + 46) + 2 * file_names_sum + files_size_sum + 22 + 512
-        self.real_size = len(files) * (30 + 16 + 46) + 2 * file_names_sum + self.files_size_sum + 22 + 2048
+        self.real_size = len(files) * (30 + 16 + 46) + 2 * file_names_sum + self.files_size_sum + 22 + 5120
         self.max_size = const.TG_MAX_FILE_SIZE if should_split else self.real_size
         self.big = self.real_size > self.max_size
-        self.size = self.max_size if self.big else self.real_size
+        self._size = self.max_size if self.big else self.real_size
 
         last_repl = False
         f_name = ''
         for i in name:
-            if not i.isalnum() and i != '.':
+            if not i.isalnum():
                 f_name += '_' if last_repl == False else ''
                 last_repl = True
             else:
@@ -119,7 +119,18 @@ class ZipTorrentContentFile(Reader):
     def set_should_split(self, should_split=True):
         self.max_size = const.TG_MAX_FILE_SIZE if should_split else self.real_size
         self.big = self.real_size > self.max_size
-        self.size = self.max_size if self.big else self.real_size
+        self._size = self.max_size if self.big else self.real_size
+
+    @property
+    def size(self):
+        if self.big:
+            data_left = self.real_size - (self.zip_num - 1) * self.max_size
+            if data_left > self.max_size:
+                return self.max_size
+            else:
+                return data_left
+        else:
+            return self._size
 
     def close(self):
         self.zipstream.close()
@@ -191,7 +202,7 @@ class ZipTorrentContentFile(Reader):
             resp = self.buf
             self.buf = bytes()
         if n == -1:
-            n = 512*1024
+            n = self.size
         if n + self.processed_size > self.max_size:
             self.log.debug('n({}) + ZipTorrentContentFile.processed_size({}) > TG_MAX_FILE_SIZE'.format(n, self.processed_size))
             n = self.max_size - self.processed_size
@@ -259,7 +270,7 @@ class ZipTorrentContentFile(Reader):
             self.processed_size = 0
             self.must_next_file = True
             #self.real_size -= self.max_size
-            self.size = self.max_size if self.real_size > self.max_size else self.real_size
+            # self._size = self.max_size if self.real_size > self.max_size else self.real_size
 
         self.log.debug('ZipTorrentContentFile.processed_size = ' + str(self.processed_size))
         if n <= 1024 and n > 0:
