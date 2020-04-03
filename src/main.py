@@ -169,242 +169,14 @@ async def on_cancel_button(event):
 
 @bot.on(events.CallbackQuery(pattern='^-?[0-9]+:-?[0-9]+$'))
 async def on_button(event):
-    global session
     try:
-        l.debug(event)
-        button_id = None
-        zfile = None
-        idlog = _log.new_logger(user_id=event.sender_id)
-        #user = await client.get_entity(event.sender_id)
-
-        if event.sender_id in in_progress_users:
-            #idlog.info(user.username + ' ' + 'Button pressed while' +
-            #           ' ' + ('being in progress' if event.sender_id in in_progress_users else 'in pending state'))
-            idlog.debug('in_progress_users ' + str(in_progress_users))
-            idlog.debug('pending_torrents ' + str(pending_torrents))
-            await event.reply('Wait until current torrent will be downloaded')
-            return
-
-        in_progress_users.add(event.sender_id)
-        nidlog = None
-
-        if event.sender_id not in pending_torrents or int(event.data.split(b':')[1]) != pending_torrents[event.sender_id][0][
-            1]:
-            # handle torrent request from old message
-            idlog.info('request torrent handle from old message')
-            event.message = await (await event.get_message()).get_reply_message()
-            idlog.debug('reply message ' + str(event.message))
-            magnet_link_or_bytes = await get_torrent_from_event(idlog, event)
-            if magnet_link_or_bytes is None:
-                idlog.warning('Not magnet or torrent in old message')
-                try:
-                    in_progress_users.remove(event.sender_id)
-                    await event.reply('Failed resolve torrent')
-                except:
-                    pass
-                return
-
-            th = None
-            try:
-                th = await get_torrent_handle(idlog, magnet_link_or_bytes)
-            except NoMetadataError:
-                await event.edit('Couldn\'t resolve magnet link for metadata, torrent was removed from downloads. Sorry')
-                del pending_torrents[event.sender_id]
-                in_progress_users.remove(event.sender_id)
-                return
-            except Exception as e:
-                idlog.exception(e)
-                await event.edit('Error occured')
-                del pending_torrents[event.sender_id]
-                in_progress_users.remove(event.sender_id)
-                return
-            th.calc_prioritized_piece_count()
-            th.prepare_pieces_priority()
-
-            nidlog = _log.new_logger(torrent_name=th.name(), user_id=event.sender_id)
-
-            s = th.status()
-            files_info = th.files()
-            files = [File(f) for f in files_info]
-            nidlog.debug(files_info)
-
-            #status_msg_text, status_msg_current_file_text, zips = prepare_status_message(files, s.name, th.total_size())
-#            zfile = prepare_zip_file(th, s.name, files, event, status_msg_text, status_msg_current_file_text, event, nidlog)
-            zfile = prepare_zip_file(th, s.name, files, event, nidlog)
-            #zfile.progress_text = zips
-            button_id, _ = event.data.split(b':')
-
-        elif event.sender_id in pending_torrents:
-            zfile, origin_msg_id = pending_torrents[event.sender_id][0]
-            nidlog = _log.new_logger(torrent_name=zfile.torrent_handler.name(), user_id=event.sender_id)
-            del pending_torrents[event.sender_id]
-
-            button_id, msg_id = event.data.split(b':')
-            #if int(msg_id) != origin_msg_id:
-                # button was pressed on old torrent when new torrent was added recently
-            #    nidlog.info('button was pressed on old torrent when new torrent was added recently')
-            #    session.remove_torrent(zfile.torrent_handler)
-
-        if button_id == b'1':
-            # via Telegram
-            nidlog.info('via Telegram')
-            try:
-                # await event.edit((await event.get_message()).message, buttons=[Button.inline('Cancel', str(event.sender_id))])
-                await zfile.progress_callback(0)
-                # await event.edit((await event.get_message()).message)
-                zfile.event = event
-                upload_task = client.loop.create_task(upload_all_torrent_content(zfile, event, nidlog))
-                tasks[event.sender_id] = upload_task
-                try:
-                    await upload_task
-                except asyncio.CancelledError as e:
-                    nidlog.info('Canceled')
-
-
-                if not upload_task.cancelled():
-                    # TODO receive progress_text somehow another way
-                    nidlog.info('Completed!')
-                    _files = [File(f) for f in zfile.torrent_handler.files()]
-                    progress_text = prepare_status_message(_files, zfile.torrent_handler.name(), zfile.torrent_handler.total_size())
-                    await event.edit(progress_text.format(100))
-                # size = zfile.size
-                # f = open('test.zip', 'wb')
-                # d = await zfile.read(500*1024)
-                # while len(d) > 0:
-                #    f.write(d)
-                #    await asyncio.sleep(0.1)
-                #    d = await zfile.read(500*1024)
-                # f.close()
-
-            except tc.NoActivityTimeoutError:
-                await event.edit('Couldn\'t find any peers, torrent was removed from downloads. Sorry')
-            except Exception as e:
-                nidlog.exception(e)
-            finally:
-                zfile.close()
-                session.remove_torrent(zfile.torrent_handler)
-
-        elif button_id == b'2':
-            # via Web
-            nidlog.info('via Web')
-            try:
-                # url = 'https://api.anonfiles.com/upload'
-                # url = 'http://127.0.0.1'
-
-                # r = await httpx.post(url=url, files={'file': SyncZipTorrentContentFile(zfile)})
-                # print(r.text)
-                # curl = await asyncio.create_subprocess_exec('/usr/bin/curl',
-                #                            '-T',
-                #                            '-',
-                #                            '-X',
-                #                            'POST',
-                #                            'https://api.anonfiles.com/upload',
-                #                            stdout=asyncio.subprocess.PIPE,
-                #                           stdin=asyncio.subprocess.PIPE, loop=client.loop)
-                # await asyncio.sleep(5)
-                # d = await zfile.read()
-                # while d:
-                #    print('curl write ', len(d))
-                #    curl.stdin.write(d)
-                #    await curl.stdin.drain()
-                #    d = await zfile.read()
-                # print('curl close stdin')
-                # curl.stdin.close()
-                # ret = await curl.stdout.read()
-                # print(ret)
-                # curl.kill()
-
-                #                headers={
-                #    'Content-Length': str(zfile.size + 195 + 2*len(zfile.name.encode('utf')))
-                # }
-                #                data = aiohttp.FormData(quote_fields=False)
-                #                data.add_field('file', zfile, filename=zfile.name)
-
-                #                async with aiohttp.ClientSession() as ses:
-                #                    print('begin file uploading')
-                #                    async with ses.post(url, data=data, headers=headers)  as resp:
-                #                        print(await resp.text())
-                await event.edit((await event.get_message()).message,
-                                 buttons=[Button.inline('Cancel', str(event.sender_id))])
-                zfile.set_should_split(False)
-                fu = await fex.FexUploader.new()
-                upload_task = client.loop.create_task(fu.add_file(zfile.name, zfile.size, zfile))
-                tasks[event.sender_id] = upload_task
-                try:
-                    await upload_task
-                except asyncio.CancelledError as e:
-                    nidlog.info('Canceled')
-                # await fu.add_file(zfile.name, zfile.size, zfile)
-
-                if not upload_task.cancelled():
-                    nidlog.info('Download url ' + fu.download_link)
-
-                    # TODO receive progress_text somehow another way
-                    _files = [File(f) for f in zfile.torrent_handler.files()]
-                    progress_text = prepare_status_message(_files, zfile.torrent_handler.name(), zfile.torrent_handler.total_size())
-                    await event.edit(progress_text.format(100),
-                                     buttons=[Button.url('Download content', fu.download_link)])
-
-                # await upload_to_ipfs(zfile)
-            except tc.NoActivityTimeoutError:
-                await event.edit('Couldn\'t find any peers, torrent was removed from downloads. Sorry')
-            except Exception as e:
-                nidlog.exception(e)
-            finally:
-                await fu.delete()
-                zfile.close()
-                session.remove_torrent(zfile.torrent_handler)
-        # await event.edit((await event.get_message()).message,buttons=[Button.url('Download content', 'http://206.189.63.205:8080/'+str(file_key))])
-        elif button_id == b'3':
-            # upload via Web raw
-            nidlog.info('via Web raw')
-            try:
-                fu = await fex.FexUploader.new(nidlog)
-                await event.edit((await event.get_message()).message,
-                                 buttons=[Button.inline('Cancel', str(event.sender_id))])
-
-                files = []
-                relative_size = 0
-                _files = [File(f) for f in zfile.torrent_handler.files()]
-                progress_text = prepare_status_message(_files, zfile.torrent_handler.name(), zfile.torrent_handler.total_size())
-                callback = lambda percent: \
-                        event.edit(progress_text.format(percent), buttons=[Button.inline('Cancel', str(event.sender_id))])
-                for f in zfile.files:
-                    files.append(fex.FexFile(tc.AsyncTorrentContentFileWrapper(f,
-                                                                               callback,
-                                                                               relative_size,
-                                                                               zfile.files_size_sum, nidlog),
-                                             f.info.fullpath, f.info.size))
-                    relative_size += f.info.size
-
-                upload_task = client.loop.create_task(fu.upload_files(files))
-                tasks[event.sender_id] = upload_task
-
-                try:
-                    await upload_task
-                except asyncio.CancelledError as e:
-                    nidlog.info('Canceled')
-
-                if not upload_task.cancelled():
-                    nidlog.info('Completed!')
-                    nidlog.info('Download url ' + fu.download_link)
-                    await event.edit(progress_text.format(100),
-                                     buttons=[Button.url('Download content', fu.download_link)])
-
-            except tc.NoActivityTimeoutError:
-                await event.edit('Couldn\'t find any peers, torrent was removed from downloads. Sorry')
-            except Exception as e:
-                nidlog.exception(e)
-            finally:
-                await fu.delete()
-                zfile.close()
-                session.remove_torrent(zfile.torrent_handler)
-        else:
-            nidlog.error('Error: wrong button id ', button_id)
-
+        session = session_manager.get_session(event.sender_id)
+        await _on_button(event, session)
     except Exception as e:
         l.exception(e)
+        await event.edit('ERROR occurred')
     finally:
+        session_manager.del_session(event.sender_id)
         if event.sender_id in tasks:
             if not tasks[event.sender_id].cancelled():
                 tasks[event.sender_id].cancel()
@@ -413,6 +185,299 @@ async def on_button(event):
             in_progress_users.remove(event.sender_id)
         if event.sender_id in pending_torrents:
             del pending_torrents[event.sender_id]
+
+
+async def _on_button(event, session):
+    l.debug(event)
+    button_id = None
+    zfile = None
+    idlog = _log.new_logger(user_id=event.sender_id)
+    #user = await client.get_entity(event.sender_id)
+
+    if event.sender_id in in_progress_users:
+        #idlog.info(user.username + ' ' + 'Button pressed while' +
+        #           ' ' + ('being in progress' if event.sender_id in in_progress_users else 'in pending state'))
+        idlog.debug('in_progress_users ' + str(in_progress_users))
+        idlog.debug('pending_torrents ' + str(pending_torrents))
+        await event.reply('Wait until current torrent will be downloaded')
+        return
+
+    in_progress_users.add(event.sender_id)
+    nidlog = None
+
+    if event.sender_id not in pending_torrents or int(event.data.split(b':')[1]) != pending_torrents[event.sender_id][0][
+        1]:
+        # handle torrent request from old message
+        idlog.info('request torrent handle from old message')
+        event.message = await (await event.get_message()).get_reply_message()
+        idlog.debug('reply message ' + str(event.message))
+        magnet_link_or_bytes = await get_torrent_from_event(idlog, event)
+        if magnet_link_or_bytes is None:
+            idlog.warning('Not magnet or torrent in old message')
+            try:
+                in_progress_users.remove(event.sender_id)
+                await event.reply('Failed resolve torrent')
+            except:
+                pass
+            return
+
+        th = None
+        try:
+            session = session_manager.new_session(event.sender_id)
+            th = await get_torrent_handle(idlog, magnet_link_or_bytes, session)
+        except NoMetadataError:
+            await event.edit('Couldn\'t resolve magnet link for metadata, torrent was removed from downloads. Sorry')
+            del pending_torrents[event.sender_id]
+            in_progress_users.remove(event.sender_id)
+            return
+        except Exception as e:
+            idlog.exception(e)
+            await event.edit('ERROR occurred')
+            del pending_torrents[event.sender_id]
+            in_progress_users.remove(event.sender_id)
+            return
+        th.calc_prioritized_piece_count()
+        th.prepare_pieces_priority()
+
+        nidlog = _log.new_logger(torrent_name=th.name(), user_id=event.sender_id)
+
+        s = th.status()
+        files_info = th.files()
+        files = [File(f) for f in files_info]
+        nidlog.debug(files_info)
+
+        #status_msg_text, status_msg_current_file_text, zips = prepare_status_message(files, s.name, th.total_size())
+#            zfile = prepare_zip_file(th, s.name, files, event, status_msg_text, status_msg_current_file_text, event, nidlog)
+        zfile = prepare_zip_file(th, s.name, files, event, nidlog)
+        #zfile.progress_text = zips
+        button_id, _ = event.data.split(b':')
+
+    elif event.sender_id in pending_torrents:
+        zfile, origin_msg_id = pending_torrents[event.sender_id][0]
+        nidlog = _log.new_logger(torrent_name=zfile.torrent_handler.name(), user_id=event.sender_id)
+        del pending_torrents[event.sender_id]
+
+        button_id, msg_id = event.data.split(b':')
+        #if int(msg_id) != origin_msg_id:
+            # button was pressed on old torrent when new torrent was added recently
+        #    nidlog.info('button was pressed on old torrent when new torrent was added recently')
+        #    session.remove_torrent(zfile.torrent_handler)
+
+    if button_id == b'1':
+        # via Telegram
+        nidlog.info('via Telegram')
+        try:
+            # await event.edit((await event.get_message()).message, buttons=[Button.inline('Cancel', str(event.sender_id))])
+            await zfile.progress_callback(0)
+            # await event.edit((await event.get_message()).message)
+            zfile.event = event
+            upload_task = client.loop.create_task(upload_all_torrent_content(zfile, event, nidlog))
+            tasks[event.sender_id] = upload_task
+            try:
+                await upload_task
+            except asyncio.CancelledError as e:
+                nidlog.info('Canceled')
+
+
+            if not upload_task.cancelled():
+                # TODO receive progress_text somehow another way
+                nidlog.info('Completed!')
+                _files = [File(f) for f in zfile.torrent_handler.files()]
+                progress_text = prepare_status_message(_files, zfile.torrent_handler.name(), zfile.torrent_handler.total_size())
+                await event.edit(progress_text.format(100))
+            # size = zfile.size
+            # f = open('test.zip', 'wb')
+            # d = await zfile.read(500*1024)
+            # while len(d) > 0:
+            #    f.write(d)
+            #    await asyncio.sleep(0.1)
+            #    d = await zfile.read(500*1024)
+            # f.close()
+
+        except tc.NoActivityTimeoutError:
+            await event.edit('Couldn\'t find any peers, torrent was removed from downloads. Sorry')
+        finally:
+            zfile.close()
+            session.remove_torrent(zfile.torrent_handler)
+
+    elif button_id == b'2':
+        nidlog.info('via Telegram raw')
+        try:
+            await event.edit((await event.get_message()).message,
+                             buttons=[Button.inline('❌CANCEL❌', str(event.sender_id))])
+
+            files = []
+            relative_size = 0
+            _files = [File(f) for f in zfile.torrent_handler.files()]
+            progress_text = prepare_status_message(_files, zfile.torrent_handler.name(),
+                                                   zfile.torrent_handler.total_size())
+            callback = lambda percent: \
+                event.edit(progress_text.format(percent), buttons=[Button.inline('❌CANCEL❌', str(event.sender_id))])
+            for f in zfile.files:
+                if f.info.size == 0:
+                    print('remove 0 size file')
+                    continue
+                files.append(fex.FexFile(tc.AsyncTorrentContentFileWrapper(f,
+                                                                           callback,
+                                                                           relative_size,
+                                                                           zfile.files_size_sum, nidlog),
+                                         f.info.fullpath, f.info.size))
+                relative_size += f.info.size
+
+            upload_task = asyncio.get_event_loop().create_task(upload_telegram_raw_files(files, event.sender_id, nidlog))
+            tasks[event.sender_id] = upload_task
+
+            try:
+                await upload_task
+            except asyncio.CancelledError as e:
+                nidlog.info('Canceled')
+
+            if not upload_task.cancelled():
+                nidlog.info('Completed!')
+                await event.edit(progress_text.format(100), buttons=None)
+
+        except tc.NoActivityTimeoutError:
+            await event.edit('Couldn\'t find any peers, torrent was removed from downloads. Sorry')
+        finally:
+            zfile.close()
+            session.remove_torrent(zfile.torrent_handler)
+
+    elif button_id == b'4':
+        # via Web
+        nidlog.info('via Web')
+        try:
+            # url = 'https://api.anonfiles.com/upload'
+            # url = 'http://127.0.0.1'
+
+            # r = await httpx.post(url=url, files={'file': SyncZipTorrentContentFile(zfile)})
+            # print(r.text)
+            # curl = await asyncio.create_subprocess_exec('/usr/bin/curl',
+            #                            '-T',
+            #                            '-',
+            #                            '-X',
+            #                            'POST',
+            #                            'https://api.anonfiles.com/upload',
+            #                            stdout=asyncio.subprocess.PIPE,
+            #                           stdin=asyncio.subprocess.PIPE, loop=client.loop)
+            # await asyncio.sleep(5)
+            # d = await zfile.read()
+            # while d:
+            #    print('curl write ', len(d))
+            #    curl.stdin.write(d)
+            #    await curl.stdin.drain()
+            #    d = await zfile.read()
+            # print('curl close stdin')
+            # curl.stdin.close()
+            # ret = await curl.stdout.read()
+            # print(ret)
+            # curl.kill()
+
+            #                headers={
+            #    'Content-Length': str(zfile.size + 195 + 2*len(zfile.name.encode('utf')))
+            # }
+            #                data = aiohttp.FormData(quote_fields=False)
+            #                data.add_field('file', zfile, filename=zfile.name)
+
+            #                async with aiohttp.ClientSession() as ses:
+            #                    print('begin file uploading')
+            #                    async with ses.post(url, data=data, headers=headers)  as resp:
+            #                        print(await resp.text())
+            await event.edit((await event.get_message()).message,
+                             buttons=[Button.inline('❌CANCEL❌', str(event.sender_id))])
+            zfile.set_should_split(False)
+            fu = await fex.FexUploader.new()
+            upload_task = client.loop.create_task(fu.add_file(zfile.name, zfile.size, zfile))
+            tasks[event.sender_id] = upload_task
+            try:
+                await upload_task
+            except asyncio.CancelledError as e:
+                nidlog.info('Canceled')
+            # await fu.add_file(zfile.name, zfile.size, zfile)
+
+            if not upload_task.cancelled():
+                nidlog.info('Download url ' + fu.download_link)
+
+                # TODO receive progress_text somehow another way
+                _files = [File(f) for f in zfile.torrent_handler.files()]
+                progress_text = prepare_status_message(_files, zfile.torrent_handler.name(), zfile.torrent_handler.total_size())
+                await event.edit(progress_text.format(100),
+                                 buttons=[Button.url('Download content', fu.download_link)])
+
+            # await upload_to_ipfs(zfile)
+        except tc.NoActivityTimeoutError:
+            await event.edit('Couldn\'t find any peers, torrent was removed from downloads. Sorry')
+        finally:
+            await fu.delete()
+            zfile.close()
+            session.remove_torrent(zfile.torrent_handler)
+    # await event.edit((await event.get_message()).message,buttons=[Button.url('Download content', 'http://206.189.63.205:8080/'+str(file_key))])
+    elif button_id == b'3':
+        # upload via Web raw
+        nidlog.info('via Web raw')
+        try:
+            fu = await fex.FexUploader.new(nidlog)
+            await event.edit((await event.get_message()).message,
+                             buttons=[Button.inline('❌CANCEL❌', str(event.sender_id))])
+
+            files = []
+            relative_size = 0
+            _files = [File(f) for f in zfile.torrent_handler.files()]
+            progress_text = prepare_status_message(_files, zfile.torrent_handler.name(), zfile.torrent_handler.total_size())
+            callback = lambda percent: \
+                    event.edit(progress_text.format(percent), buttons=[Button.inline('❌CANCEL❌', str(event.sender_id))])
+            for f in zfile.files:
+                if f.info.size == 0:
+                    print('remove 0 size file')
+                    continue
+                files.append(fex.FexFile(tc.AsyncTorrentContentFileWrapper(f,
+                                                                           callback,
+                                                                           relative_size,
+                                                                           zfile.files_size_sum, nidlog),
+                                         f.info.fullpath, f.info.size))
+                relative_size += f.info.size
+
+            upload_task = client.loop.create_task(fu.upload_files(files))
+            tasks[event.sender_id] = upload_task
+
+            try:
+                await upload_task
+            except asyncio.CancelledError as e:
+                nidlog.info('Canceled')
+
+            if not upload_task.cancelled():
+                nidlog.info('Completed!')
+                nidlog.info('Download url ' + fu.download_link)
+                await event.edit(progress_text.format(100),
+                                 buttons=[Button.url('Download content', fu.download_link)])
+
+        except tc.NoActivityTimeoutError:
+            await event.edit('Couldn\'t find any peers, torrent was removed from downloads. Sorry')
+        finally:
+            await fu.delete()
+            zfile.close()
+            session.remove_torrent(zfile.torrent_handler)
+    else:
+        nidlog.error('Error: wrong button id ', button_id)
+
+
+async def upload_telegram_raw_files(files, user_id, log):
+    for f in files:
+        name = f.path.split('/')[-1]
+        global TG_PARALLEL_CONNECTION_BUDGET
+        log.info("trying upload {} with size = {}".format(name, f.size))
+        if TG_PARALLEL_CONNECTION_BUDGET > 0 and f.size > 50 * 1024 * 1024:
+            TG_PARALLEL_CONNECTION_BUDGET -= 3
+            try:
+                uploaded_file = await fast_telethon.upload_file(client,
+                                                                f.file,
+                                                                file_size=f.size,
+                                                                file_name=name,
+                                                                max_connection=3)
+            finally:
+                TG_PARALLEL_CONNECTION_BUDGET += 3
+        else:
+            uploaded_file = await client.upload_file(f.file, file_size=f.size, file_name=name)
+        await client.send_file(BOT_ID, uploaded_file, caption=str(user_id), force_document=True)
 
 
 async def upload_files(log, event, uploader, files, progress_text, files_size_sum):
@@ -487,7 +552,7 @@ def prepare_zip_file(th, torrent_name, files, event, log):
     zip_progress_text = prepare_status_message(files, torrent_name, th.total_size())
 
     callback = lambda percent: \
-        event.edit(zip_progress_text.format(percent), buttons=[Button.inline('Cancel', str(event.sender_id))])
+        event.edit(zip_progress_text.format(percent), buttons=[Button.inline('❌CANCEL❌', str(event.sender_id))])
 
     zfile = tc.ZipTorrentContentFile(th, torrent_files, torrent_name, callback, log, should_split=True)
 
@@ -502,6 +567,15 @@ async def upload_all_torrent_content(zfile, event, log):
 
 @bot.on(events.NewMessage)
 async def on_message(event):
+    try:
+        await _on_message(event)
+    except Exception as e:
+        l.exception(e)
+        del pending_torrents[event.from_id]
+        session_manager.del_session(event.from_id)
+
+
+async def _on_message(event):
     if event.raw_text == '/start':
         return
     l.debug(event)
@@ -509,108 +583,123 @@ async def on_message(event):
     if event.from_id == int(os.getenv('BOT_AGENT_CHAT_ID')):
         await share_content_with_user(event)
         return
+    idlog = _log.new_logger(user_id=event.from_id)
+    if event.from_id in in_progress_users or event.from_id in pending_torrents:
+        #user = await client.get_entity(event.from_id)
+        #idlog.info(user.username + ' ' + 'sent message while' +
+        #           ' ' + ('being in progress' if event.from_id in in_progress_users else 'in pending state'))
+        idlog.debug('in_progress_users ' + str(in_progress_users))
+        idlog.debug('pending_torrents ' + str(pending_torrents))
+        await event.reply('Wait until current torrent will be downloaded')
+        return
+    magnet_link_or_bytes = await get_torrent_from_event(idlog, event)
+    if magnet_link_or_bytes is not None:
+        # set dumb data until torrent will be resolved
+        pending_torrents[event.from_id] = True
+    else:
+        return
+
+    e = await event.reply('Resolving torrent, please wait...')
+    th = None
     try:
-        idlog = _log.new_logger(user_id=event.from_id)
-        if event.from_id in in_progress_users or event.from_id in pending_torrents:
-            #user = await client.get_entity(event.from_id)
-            #idlog.info(user.username + ' ' + 'sent message while' +
-            #           ' ' + ('being in progress' if event.from_id in in_progress_users else 'in pending state'))
-            idlog.debug('in_progress_users ' + str(in_progress_users))
-            idlog.debug('pending_torrents ' + str(pending_torrents))
-            await event.reply('Wait until current torrent will be downloaded')
-            return
-        magnet_link_or_bytes = await get_torrent_from_event(idlog, event)
-        if magnet_link_or_bytes is not None:
-            # set dumb data until torrent will be resolved
-            pending_torrents[event.from_id] = True
-        else:
-            return
+        session = session_manager.new_session(event.from_id)
+        th = await get_torrent_handle(idlog, magnet_link_or_bytes, session)
+    except NoMetadataError as err:
+        idlog.error(err)
+        await e.edit('Couldn\'t resolve magnet link for metadata, torrent was removed from downloads. Sorry')
+        raise
+    except Exception as err:
+        idlog.exception(err)
+        await e.edit('Error occured')
+        raise
+    nidlog = _log.new_logger(torrent_name=th.name(), user_id=event.from_id)
+    nidlog.debug('Torrent handler created successfull')
 
-        e = await event.reply('Resolving torrent, please wait...')
-        th = None
-        try:
-            th = await get_torrent_handle(idlog, magnet_link_or_bytes)
-        except NoMetadataError:
-            await e.edit('Couldn\'t resolve magnet link for metadata, torrent was removed from downloads. Sorry')
-            del pending_torrents[event.from_id]
-            return
-        except Exception as err:
-            idlog.exception(err)
-            await e.edit('Error occured')
-            del pending_torrents[event.from_id]
-            return
-        nidlog = _log.new_logger(torrent_name=th.name(), user_id=event.from_id)
-        nidlog.debug('Torrent handler created successfull')
+    s = th.status()
+    files_info = th.files()
+    files = [File(f) for f in files_info]
+    nidlog.debug(files_info)
 
-        s = th.status()
-        files_info = th.files()
-        files = [File(f) for f in files_info]
-        nidlog.debug(files_info)
+    files_size_sum = files_size(files)
+    nidlog.info('Content size: ' + sizeof_fmt(files_size_sum))
 
-        files_size_sum = files_size(files)
-        nidlog.info('Content size: ' + sizeof_fmt(files_size_sum))
+    if files_size_sum > 20 * 1024 * 1024 * 1024:
+        session.remove_torrent(th)
+        await e.edit('ERROR: too big torrent.\n'
+                     'For Web max allowed torrent size 20 GB,\n'
+                     'individual file size should be less then 10 GB.\n'
+                     'For Telegram max allowed torrent size 10 GB')
+        raise Exception('Too big torrent')
 
-        if files_size_sum > 20 * 1024 * 1024 * 1024:
-            await e.edit('Torrent is too big, max allowed size is 20 GB')
-            del pending_torrents[event.from_id]
-            session.remove_torrent(th)
-            return
+    buttons = []
+    if files_size_sum <= 10*1024*1024*1024:
+        buttons.append([Button.inline('over Telegram(zip)', '1:' + str(event.message.id))])
+    is_raw_tg_suitable = True
+    for f in files:
+        if f.size > 1500 * 1024 * 1024:
+            is_raw_tg_suitable = False
+            break
+    if is_raw_tg_suitable:
+        buttons.append([Button.inline('over Telegram', '2:'+str(event.message.id))])
+    # buttons.append(Button.inline('via Web(Zip)', '4:'+str(event.message.id)))
+    # if len(files) <= MAX_LEN_FILES_FOR_RAW:
+    if max(files, key=lambda f: f.size).size < 10 * 1024*1024*1024:
+        buttons.append([Button.inline('over Web', '3:' + str(event.message.id))])
+    if len(buttons) == 0:
+        nidlog.info('Too big torrent size content')
+        await e.edit('ERROR: too big torrent.\n'
+                     'For Web max allowed torrent size 20 GB,\n'
+                     'individual file size should be less then 10 GB.\n'
+                     'For Telegram max allowed torrent size 10 GB')
+        session.remove_torrent(th)
+        raise Exception('Too big torrent')
 
-        buttons = []
-        if files_size_sum <= 5*1024*1024*1024:
-            buttons.append(Button.inline('over Telegram(slow)', '1:' + str(event.message.id)))
-        # buttons.append(Button.inline('via Web(Zip)', '2:'+str(event.message.id)))
-        # if len(files) <= MAX_LEN_FILES_FOR_RAW:
-        buttons.append(Button.inline('over Web', '3:' + str(event.message.id)))
 
-        # status_msg_text, status_msg_current_file_text, zip_progress_text = prepare_status_message(files, s.name, th.total_size())
-        zip_progress_text = prepare_status_message(files, s.name, th.total_size())
-        status_msg = await e.edit(zip_progress_text.format(0).format(progress=""), buttons=buttons)
-        zfile = prepare_zip_file(th, s.name, files, status_msg, nidlog)
-        #zfile.progress_text = zip_progress_text
+    # status_msg_text, status_msg_current_file_text, zip_progress_text = prepare_status_message(files, s.name, th.total_size())
+    zip_progress_text = prepare_status_message(files, s.name, th.total_size())
+    status_msg = await e.edit(zip_progress_text.format(0).format(progress=""), buttons=buttons)
+    zfile = prepare_zip_file(th, s.name, files, status_msg, nidlog)
+    #zfile.progress_text = zip_progress_text
 
-        pending_torrents[event.from_id] = ((zfile, event.message.id), time.time())
+    pending_torrents[event.from_id] = ((zfile, event.message.id), time.time())
 
-        # if filze size < 2 GB allow upload via Telegram
-        # otherwise only web allowed
-        # if files_size_sum <= 2*1024*1024*1024 or len(files) <= MAX_LEN_FILES_FOR_RAW:
-        #     nidlog.debug('zfile.size = ', zfile.size)
-        #     pending_torrents[event.from_id] = ((zfile, event.message.id), time.time())
-        #     return
+    # if filze size < 2 GB allow upload via Telegram
+    # otherwise only web allowed
+    # if files_size_sum <= 2*1024*1024*1024 or len(files) <= MAX_LEN_FILES_FOR_RAW:
+    #     nidlog.debug('zfile.size = ', zfile.size)
+    #     pending_torrents[event.from_id] = ((zfile, event.message.id), time.time())
+    #     return
 
-        # Upload via Web without buttons
-        # try:
-        #     nidlog.info('Uploading via web')
-        #     await status_msg.edit(status_msg.message, buttons=[Button.inline('Cancel', str(event.from_id))])
-        #     in_progress_users.add(event.from_id)
-        #     del pending_torrents[event.from_id]
-        #     zfile.set_should_split(False)
-        #     zfile.event = status_msg
-        #     fu = await fex.FexUploader.new()
-        #     upload_task = client.loop.create_task(fu.add_file(zfile.name, zfile.size, zfile))
-        #     tasks[event.from_id] = upload_task
-        #     try:
-        #         await upload_task
-        #     except asyncio.CancelledError as e:
-        #         print(e)
-        #     #await fu.add_file(zfile.name, zfile.size, zfile)
-        #     await fu.delete()
-        #     if not upload_task.cancelled():
-        #         await status_msg.edit(zfile.progress_text.format(zfile.last_percent),buttons=[Button.url('Download content', fu.download_link)])
-        #
-        #     #await upload_to_ipfs(zfile)
-        # except Exception as e:
-        #     print(e)
-        #     traceback.print_exc()
-        # finally:
-        #     if event.from_id in tasks:
-        #         del tasks[event.from_id]
-        #     zfile.close()
-        #     session.remove_torrent(zfile.torrent_handler)
-        #     in_progress_users.remove(event.from_id)
-
-    except Exception as e:
-        l.exception(e)
+    # Upload via Web without buttons
+    # try:
+    #     nidlog.info('Uploading via web')
+    #     await status_msg.edit(status_msg.message, buttons=[Button.inline('Cancel', str(event.from_id))])
+    #     in_progress_users.add(event.from_id)
+    #     del pending_torrents[event.from_id]
+    #     zfile.set_should_split(False)
+    #     zfile.event = status_msg
+    #     fu = await fex.FexUploader.new()
+    #     upload_task = client.loop.create_task(fu.add_file(zfile.name, zfile.size, zfile))
+    #     tasks[event.from_id] = upload_task
+    #     try:
+    #         await upload_task
+    #     except asyncio.CancelledError as e:
+    #         print(e)
+    #     #await fu.add_file(zfile.name, zfile.size, zfile)
+    #     await fu.delete()
+    #     if not upload_task.cancelled():
+    #         await status_msg.edit(zfile.progress_text.format(zfile.last_percent),buttons=[Button.url('Download content', fu.download_link)])
+    #
+    #     #await upload_to_ipfs(zfile)
+    # except Exception as e:
+    #     print(e)
+    #     traceback.print_exc()
+    # finally:
+    #     if event.from_id in tasks:
+    #         del tasks[event.from_id]
+    #     zfile.close()
+    #     session.remove_torrent(zfile.torrent_handler)
+    #     in_progress_users.remove(event.from_id)
 
 
 async def get_torrent_from_event(log, event):
