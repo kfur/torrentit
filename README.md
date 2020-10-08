@@ -15,14 +15,7 @@ For running required phone number for bypassing telegram bot api upload files li
 Set the following enviroment variables:
   1. Bot token(from Bot Father):
 `BOT_TOKEN`
-
-  2. Chat id between bot and agent (client id with phone number):
-`BOT_AGENT_CHAT_ID`
-
-  3. Chat id between agent and bot (bot name):
-`BOT_ID`
-
-  4. Api id (https://core.telegram.org/api/obtaining_api_id):
+  2. Api id (https://core.telegram.org/api/obtaining_api_id):
 `API_ID`
-  5. Api hash (https://core.telegram.org/api/obtaining_api_id):
+  3. Api hash (https://core.telegram.org/api/obtaining_api_id):
 `API_HASH`
