@@ -30,7 +30,6 @@ api_id = int(os.getenv('API_ID'))
 api_hash = os.getenv('API_HASH')
 session_manager = SessionManager()
 
-client = TelegramClient('toby', api_id, api_hash)
 bot = TelegramClient('bot', api_id, api_hash).start(bot_token=bot_token)
 
 in_progress_users = set()
@@ -274,7 +273,7 @@ async def _on_button(event, session):
             await zfile.progress_callback(0)
             # await event.edit((await event.get_message()).message)
             zfile.event = event
-            upload_task = client.loop.create_task(upload_all_torrent_content(zfile, event, nidlog))
+            upload_task = bot.loop.create_task(upload_all_torrent_content(zfile, event, nidlog))
             tasks[event.sender_id] = upload_task
             try:
                 await upload_task
@@ -389,7 +388,7 @@ async def _on_button(event, session):
                              buttons=[Button.inline('❌CANCEL❌', str(event.sender_id))])
             zfile.set_should_split(False)
             fu = await fex.FexUploader.new()
-            upload_task = client.loop.create_task(fu.add_file(zfile.name, zfile.size, zfile))
+            upload_task = bot.loop.create_task(fu.add_file(zfile.name, zfile.size, zfile))
             tasks[event.sender_id] = upload_task
             try:
                 await upload_task
@@ -439,7 +438,7 @@ async def _on_button(event, session):
                                          f.info.fullpath, f.info.size))
                 relative_size += f.info.size
 
-            upload_task = client.loop.create_task(fu.upload_files(files))
+            upload_task = bot.loop.create_task(fu.upload_files(files))
             tasks[event.sender_id] = upload_task
 
             try:
@@ -471,7 +470,7 @@ async def upload_telegram_raw_files(files, user_id, log):
         if TG_PARALLEL_CONNECTION_BUDGET > 0 and f.size > 50 * 1024 * 1024:
             TG_PARALLEL_CONNECTION_BUDGET -= 3
             try:
-                uploaded_file = await fast_telethon.upload_file(client,
+                uploaded_file = await fast_telethon.upload_file(bot,
                                                                 f.file,
                                                                 file_size=f.size,
                                                                 file_name=name,
@@ -479,8 +478,8 @@ async def upload_telegram_raw_files(files, user_id, log):
             finally:
                 TG_PARALLEL_CONNECTION_BUDGET += 3
         else:
-            uploaded_file = await client.upload_file(f.file, file_size=f.size, file_name=name)
-        await client.send_file(BOT_ID, uploaded_file, caption=str(user_id), force_document=True)
+            uploaded_file = await bot.upload_file(f.file, file_size=f.size, file_name=name)
+        await bot.send_file(user_id, uploaded_file, force_document=True)
 
 
 async def upload_files(log, event, uploader, files, progress_text, files_size_sum):
@@ -582,10 +581,6 @@ async def _on_message(event):
     if event.raw_text == '/start':
         return
     l.debug(event)
-    # BOT_AGENT_CHAT_ID - client user id to bypass 50 MB limit
-    if event.from_id == int(os.getenv('BOT_AGENT_CHAT_ID')):
-        await share_content_with_user(event)
-        return
     idlog = _log.new_logger(user_id=event.from_id)
     if event.from_id in in_progress_users or event.from_id in pending_torrents:
         #user = await client.get_entity(event.from_id)
@@ -793,7 +788,6 @@ async def get_torrent_handle(log, torrent, session):
     return th
 
 
-BOT_ID = os.getenv('BOT_ID')
 TG_PARALLEL_CONNECTION_BUDGET = 24
 
 async def upload_torrent_content(file, userid, log):
@@ -802,7 +796,7 @@ async def upload_torrent_content(file, userid, log):
     if TG_PARALLEL_CONNECTION_BUDGET > 0 and file.size > 50 * 1024 * 1024:
         TG_PARALLEL_CONNECTION_BUDGET -= 3
         try:
-            uploaded_file = await fast_telethon.upload_file(client,
+            uploaded_file = await fast_telethon.upload_file(bot,
                                                             file,
                                                             file_size=file.size,
                                                             file_name=file.name,
@@ -810,8 +804,8 @@ async def upload_torrent_content(file, userid, log):
         finally:
             TG_PARALLEL_CONNECTION_BUDGET += 3
     else:
-        uploaded_file = await client.upload_file(file, file_size=file.size, file_name=file.name)
-    await client.send_file(BOT_ID, uploaded_file, caption=str(userid))
+        uploaded_file = await bot.upload_file(file, file_size=file.size, file_name=file.name)
+    await bot.send_file(userid, uploaded_file)
 
 
 async def periodic_cleanup():
@@ -837,8 +831,8 @@ async def periodic_cleanup():
 
 if __name__ == '__main__':
     try:
-        client.start()
-        client.loop.create_task(periodic_cleanup())
-        client.run_until_disconnected()
+        bot.start()
+        bot.loop.create_task(periodic_cleanup())
+        bot.run_until_disconnected()
     except Exception as e:
         l.exception(e)
