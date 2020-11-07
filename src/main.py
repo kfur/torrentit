@@ -634,7 +634,7 @@ async def _on_message(event):
         buttons.append([Button.inline('over Telegram(zip)', '1:' + str(event.message.id))])
     is_raw_tg_suitable = True
     for f in files:
-        if f.size > 1500 * 1024 * 1024:
+        if f.size > const.TG_MAX_FILE_SIZE:
             is_raw_tg_suitable = False
             break
     if is_raw_tg_suitable:
