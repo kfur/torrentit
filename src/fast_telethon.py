@@ -190,7 +190,8 @@ class ParallelTransferrer:
                           connection_count: Optional[int] = None, max_connection=None) -> Tuple[int, int, bool]:
         connection_count = connection_count or self._get_connection_count(file_size, max_count=max_connection)
         print("init_upload count is ", connection_count)
-        part_size = (part_size_kb or utils.get_appropriated_part_size(file_size)) * 1024
+#         part_size = (part_size_kb or utils.get_appropriated_part_size(file_size)) * 1024
+        part_size = 512 * 1024
         part_count = (file_size + part_size - 1) // part_size
         is_large = file_size > 10 * 1024 * 1024
         await self._init_upload(connection_count, file_id, part_count, is_large)
