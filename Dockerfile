@@ -10,8 +10,6 @@ EXPOSE 8080
 WORKDIR /root/torrentit
 ENV LD_LIBRARY_PATH /root/torrentit
 COPY requirements.txt .
-COPY toby.session .
-COPY bot.session .
 COPY src/*.py ./
 COPY start.sh .
 COPY --from=0 /root/boost_1_64_0/bin.v2/libs/python/build/gcc-7/release/asserts-production/i2p-off/libtorrent-link-static/libtorrent-python-pic-on/lt-visibility-hidden/libboost_python3.so.1.64.0  .
