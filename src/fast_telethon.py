@@ -190,7 +190,7 @@ class ParallelTransferrer:
                           connection_count: Optional[int] = None, max_connection=None) -> Tuple[int, int, bool]:
         connection_count = connection_count or self._get_connection_count(file_size, max_count=max_connection)
         print("init_upload count is ", connection_count)
-#         part_size = (part_size_kb or utils.get_appropriated_part_size(file_size)) * 1024
+        # part_size = (part_size_kb or utils.get_appropriated_part_size(file_size)) * 1024
         part_size = 512 * 1024
         part_count = (file_size + part_size - 1) // part_size
         is_large = file_size > 10 * 1024 * 1024
@@ -246,33 +246,27 @@ async def _internal_transfer_to_telegram(client: TelegramClient,
     file_id = helpers.generate_random_long()
     # file_size = os.path.getsize(response.name)
 
-    # hash_md5 = hashlib.md5()
+    hash_md5 = hashlib.md5()
     uploader = ParallelTransferrer(client)
     part_size, part_count, is_large = await uploader.init_upload(file_id, file_size, max_connection=max_connection)
     buffer = bytearray()
-    # part_index = 0
-    # complete = False
-    for part_index in range(part_count):
-    # async for data in stream_file(response, chunk_size=part_size):
-        data = await response.read(part_size)
-        # part_index += 1
-        len_data = len(data)
-        if len_data == 0:
-            # data was read fully
-            # emulate last piece
-            # (for zip files)
-            data = b'\0'
-        if len_data != part_size and part_index != part_count-1:
-            dat = b'\0' * (part_size - len_data)
-            data += dat
-
-        # if not is_large:
-        #     hash_md5.update(data)
-        if len(buffer) == 0 and len(data) == part_size:
+    part_index = 0
+    async for data in stream_file(response, chunk_size=part_size):
+        part_index += 1
+        if len(data) == 0:
+            part_index -= 1
+            break
+        # if len(data) != part_size and part_index != part_count:
+        #     dat = b'\0' * (part_size - len(data))
+        #     data += dat
+        if not is_large:
+            hash_md5.update(data)
+        if len(buffer) == 0:
             await uploader.upload(data)
-            # if complete:
-            #     break
-            continue
+            if part_index >= part_count:
+                break
+            else:
+                continue
         new_len = len(buffer) + len(data)
         if new_len >= part_size:
             cutoff = part_size - len(buffer)
@@ -282,17 +276,24 @@ async def _internal_transfer_to_telegram(client: TelegramClient,
             buffer.extend(data[cutoff:])
         else:
             buffer.extend(data)
-        # if complete:
-        #     break
-    # if complete:
-    #     part_count = part_index
+
+        if part_index >= part_count:
+            break
+        else:
+            continue
+
+    for u in uploader.senders:
+        u.request.file_total_parts = part_index
+        u.part_count = part_index
+    part_count = part_index
+
     if len(buffer) > 0:
         await uploader.upload(bytes(buffer))
     await uploader.finish_upload()
-    # if is_large:
-    return InputFileBig(file_id, part_count, file_name), file_size
-    # else:
-    #     return InputFile(file_id, part_count, file_name, hash_md5.hexdigest()), file_size
+    if is_large:
+        return InputFileBig(file_id, part_count, file_name), file_size
+    else:
+        return InputFile(file_id, part_count, file_name, hash_md5.hexdigest()), file_size
 
 
 async def download_file(client: TelegramClient,
