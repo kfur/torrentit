@@ -28,6 +28,9 @@ tracker_list = ['udp://tracker.opentrackr.org:1337/announce', 'http://tracker.op
 bot_token = os.getenv('BOT_TOKEN')
 api_id = int(os.getenv('API_ID'))
 api_hash = os.getenv('API_HASH')
+list_users = os.getenv('WHITELIST_USERS')  # optional list of whitelisted user ids, format is: 1234;9231;230
+if list_users:
+    list_users = [int(i) for i in list_users.split(';')]
 session_manager = SessionManager()
 
 bot = TelegramClient('bot', api_id, api_hash).start(bot_token=bot_token)
@@ -80,6 +83,9 @@ class FileGenerator():
 
 @bot.on(events.NewMessage(pattern='/start'))
 async def send_welcome(event):
+    if list_users and event.from_id not in list_users:
+        l.info('Msg from strange user')
+        return
     await bot.send_message(event.sender_id, 'Send me a torrent and i\'ll try download it for u')
     await asyncio.sleep(3)
     await bot.send_message(event.sender_id, '''**How i can retrieve torrents ?**
@@ -579,6 +585,9 @@ async def on_message(event):
 
 async def _on_message(event):
     if event.raw_text == '/start':
+        return
+    if list_users and event.from_id not in list_users:
+        l.info('Msg from strange user')
         return
     l.debug(event)
     idlog = _log.new_logger(user_id=event.from_id)
