@@ -3,8 +3,8 @@
 from telethon import TelegramClient, events, Button
 from telethon.tl.types import InputPeerChat, MessageMediaWebPage, PeerUser
 from telethon.tl.types import DocumentAttributeFilename, DocumentAttributeVideo, DocumentAttributeSticker, DocumentAttributeAudio
-import traceback
-import typing
+# import traceback
+# import typing
 
 import libtorrent as lt
 from session import SessionManager
@@ -20,7 +20,7 @@ import logger as _log
 import fex
 import torrent_content as tc
 import const
-import fast_telethon
+# import fast_telethon
 
 
 tracker_list = ['udp://tracker.opentrackr.org:1337/announce', 'http://tracker.opentrackr.org:1337/announce', 'udp://tracker.leechers-paradise.org:6969/announce', 'udp://p4p.arenabg.com:1337/announce', 'udp://9.rarbg.to:2710/announce', 'udp://9.rarbg.me:2710/announce', 'http://p4p.arenabg.com:1337/announce', 'udp://exodus.desync.com:6969/announce', 'udp://tracker.cyberia.is:6969/announce', 'udp://open.stealth.si:80/announce', 'udp://tracker.tiny-vps.com:6969/announce', 'udp://tracker.sbsub.com:2710/announce', 'udp://retracker.lanta-net.ru:2710/announce', 'udp://tracker.torrent.eu.org:451/announce', 'udp://tracker.moeking.me:6969/announce', 'udp://tracker3.itzmx.com:6961/announce', 'http://tracker3.itzmx.com:6961/announce', 'http://tracker1.itzmx.com:8080/announce', 'udp://bt1.archive.org:6969/announce', 'udp://www.loushao.net:8080/announce', 'udp://bt2.archive.org:6969/announce', 'http://www.loushao.net:8080/announce', 'udp://ipv4.tracker.harry.lu:80/announce', 'http://tracker.nyap2p.com:8080/announce', 'udp://explodie.org:6969/announce', 'http://explodie.org:6969/announce', 'udp://zephir.monocul.us:6969/announce', 'udp://xxxtor.com:2710/announce', 'udp://valakas.rollo.dnsabr.com:2710/announce', 'udp://tracker.zerobytes.xyz:1337/announce', 'udp://tracker.lelux.fi:6969/announce', 'udp://retracker.akado-ural.ru:80/announce', 'udp://opentracker.i2p.rocks:6969/announce', 'udp://opentor.org:2710/announce', 'https://tracker.lelux.fi:443/announce', 'http://tracker.zerobytes.xyz:1337/announce', 'http://tracker.lelux.fi:80/announce', 'http://opentracker.i2p.rocks:6969/announce', 'http://h4.trakx.nibba.trade:80/announce', 'udp://tracker.kamigami.org:2710/announce', 'udp://tracker.ds.is:6969/announce', 'http://vps02.net.orel.ru:80/announce', 'http://tracker.kamigami.org:2710/announce', 'udp://tracker.iamhansen.xyz:2000/announce', 'udp://tracker.teambelgium.net:6969/announce', 'udp://tracker.army:6969/announce', 'udp://open.nyap2p.com:6969/announce', 'udp://chihaya.de:6969/announce', 'http://tracker.bt4g.com:2095/announce', 'udp://tracker.uw0.xyz:6969/announce', 'udp://tracker-udp.gbitt.info:80/announce', 'udp://retracker.netbynet.ru:2710/announce', 'udp://aaa.army:8866/announce', 'https://tracker.gbitt.info:443/announce', 'https://aaa.army:8866/announce', 'http://tracker.gbitt.info:80/announce', 'http://aaa.army:8866/announce', 'https://tracker.sloppyta.co:443/announce', 'https://tracker.nitrix.me:443/announce', 'https://tracker.nanoha.org:443/announce', 'https://tracker.parrotlinux.org:443/announce', 'https://t1.leech.ie:443/announce', 'http://t1.leech.ie:80/announce', 'udp://tracker.yoshi210.com:6969/announce', 'udp://tracker.swateam.org.uk:2710/announce', 'udp://tracker.skyts.net:6969/announce', 'udp://tracker.filemail.com:6969/announce', 'udp://tracker.dler.org:6969/announce', 'udp://retracker.sevstar.net:2710/announce', 'udp://qg.lorzl.gq:2710/announce', 'https://tracker.tamersunion.org:443/announce', 'https://tk.mabo.ltd:443/announce', 'https://t3.leech.ie:443/announce', 'https://t2.leech.ie:443/announce', 'http://trun.tom.ru:80/announce', 'http://tracker.yoshi210.com:6969/announce', 'http://tracker.ygsub.com:6969/announce', 'http://tracker.skyts.net:6969/announce', 'http://tracker.dler.org:6969/announce', 'http://t3.leech.ie:80/announce', 'http://t2.leech.ie:80/announce', 'http://t.overflow.biz:6969/announce', 'http://t.nyaatracker.com:80/announce', 'http://retracker.sevstar.net:2710/announce', 'http://pow7.com:80/announce', 'http://open.acgnxtracker.com:80/announce', 'http://mail2.zelenaya.net:80/announce', 'udp://tracker4.itzmx.com:2710/announce', 'udp://tracker2.itzmx.com:6961/announce', 'udp://tr.bangumi.moe:6969/announce', 'udp://bt2.54new.com:8080/announce', 'https://tracker.hama3.net:443/announce', 'http://tracker4.itzmx.com:2710/announce', 'http://tracker2.itzmx.com:6961/announce', 'http://tracker.gcvchp.com:2710/announce', 'http://tracker.acgnx.se:80/announce', 'http://t.acg.rip:6699/announce']
@@ -467,18 +467,18 @@ async def upload_telegram_raw_files(files, user_id, log):
         name = f.path.split('/')[-1]
         global TG_PARALLEL_CONNECTION_BUDGET
         log.info("trying upload {} with size = {}".format(name, f.size))
-        if TG_PARALLEL_CONNECTION_BUDGET > 0 and f.size > 50 * 1024 * 1024:
-            TG_PARALLEL_CONNECTION_BUDGET -= 3
-            try:
-                uploaded_file = await fast_telethon.upload_file(bot,
-                                                                f.file,
-                                                                file_size=f.size,
-                                                                file_name=name,
-                                                                max_connection=3)
-            finally:
-                TG_PARALLEL_CONNECTION_BUDGET += 3
-        else:
-            uploaded_file = await bot.upload_file(f.file, file_size=f.size, file_name=name)
+        # if TG_PARALLEL_CONNECTION_BUDGET > 0 and f.size > 50 * 1024 * 1024:
+        #     TG_PARALLEL_CONNECTION_BUDGET -= 3
+        #     try:
+        #         uploaded_file = await fast_telethon.upload_file(bot,
+        #                                                         f.file,
+        #                                                         file_size=f.size,
+        #                                                         file_name=name,
+        #                                                         max_connection=3)
+        #     finally:
+        #         TG_PARALLEL_CONNECTION_BUDGET += 3
+        # else:
+        uploaded_file = await bot.upload_file(f.file, file_size=f.size, file_name=name)
         await bot.send_file(user_id, uploaded_file, force_document=True)
 
 
@@ -793,18 +793,18 @@ TG_PARALLEL_CONNECTION_BUDGET = 24
 async def upload_torrent_content(file, userid, log):
     global TG_PARALLEL_CONNECTION_BUDGET
     log.info("trying upload {} with size = {}".format(file.name, file.size))
-    if TG_PARALLEL_CONNECTION_BUDGET > 0 and file.size > 50 * 1024 * 1024:
-        TG_PARALLEL_CONNECTION_BUDGET -= 3
-        try:
-            uploaded_file = await fast_telethon.upload_file(bot,
-                                                            file,
-                                                            file_size=file.size,
-                                                            file_name=file.name,
-                                                            max_connection=3)
-        finally:
-            TG_PARALLEL_CONNECTION_BUDGET += 3
-    else:
-        uploaded_file = await bot.upload_file(file, file_size=file.size, file_name=file.name)
+    # if TG_PARALLEL_CONNECTION_BUDGET > 0 and file.size > 50 * 1024 * 1024:
+    #     TG_PARALLEL_CONNECTION_BUDGET -= 3
+    #     try:
+    #         uploaded_file = await fast_telethon.upload_file(bot,
+    #                                                         file,
+    #                                                         file_size=file.size,
+    #                                                         file_name=file.name,
+    #                                                         max_connection=3)
+    #     finally:
+    #         TG_PARALLEL_CONNECTION_BUDGET += 3
+    # else:
+    uploaded_file = await bot.upload_file(file, file_size=file.size, file_name=file.name)
     await bot.send_file(userid, uploaded_file)
 
 
