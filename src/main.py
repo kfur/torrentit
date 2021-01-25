@@ -415,9 +415,12 @@ async def _on_button(event, session):
         except tc.NoActivityTimeoutError:
             await event.edit('Couldn\'t find any peers, torrent was removed from downloads. Sorry')
         finally:
-            await fu.delete()
             zfile.close()
             session.remove_torrent(zfile.torrent_handler)
+            try:
+                await fu.delete()
+            except Exception as e:
+                nidlog.error(e)
     # await event.edit((await event.get_message()).message,buttons=[Button.url('Download content', 'http://206.189.63.205:8080/'+str(file_key))])
     elif button_id == b'3':
         # upload via Web raw
@@ -461,9 +464,12 @@ async def _on_button(event, session):
         except tc.NoActivityTimeoutError:
             await event.edit('Couldn\'t find any peers, torrent was removed from downloads. Sorry')
         finally:
-            await fu.delete()
             zfile.close()
             session.remove_torrent(zfile.torrent_handler)
+            try:
+                await fu.delete()
+            except Exception as e:
+                nidlog.error(e)
     else:
         nidlog.error('Error: wrong button id ', button_id)
 

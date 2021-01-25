@@ -12,7 +12,7 @@ class FexUploader():
         self.token = None
         self.log = log
         self.dirtree = dict()
-        self.session = aiohttp.ClientSession()
+        self.session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False))
         self.download_link = None
 
     async def delete(self):
