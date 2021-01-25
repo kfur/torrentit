@@ -723,8 +723,8 @@ async def get_torrent_from_event(log, event):
 
     if hasattr(event.message, 'media') and event.message.media is not None and type(
             event.message.media) is not MessageMediaWebPage:
-        if event.message.media.document.mime_type != 'application/x-bittorrent':
-            log.info('Not a torrent file: ' + event.message.media.document.name)
+        if event.message.media.document.mime_type not in ['application/x-bittorrent', 'application/octet-stream']:
+            log.info('Not a torrent file: ' + event.message.media.document.attributes[0].file_name)
             await event.reply('Not a torrent file.\nPlease send me a torrent file/link or magnet link')
             return
         else:
