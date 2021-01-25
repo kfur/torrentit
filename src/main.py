@@ -1,4 +1,4 @@
-#!/usr/local/bin/python3
+#!/usr/bin/pyston
 
 from telethon import TelegramClient, events, Button
 from telethon.tl.types import InputPeerChat, MessageMediaWebPage, PeerUser
