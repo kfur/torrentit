@@ -5,7 +5,7 @@ apt update && apt upgrade -y
 apt install -y build-essential git wget python3-dev
 
 cd /root/
-wget 'https://dl.bintray.com/boostorg/release/1.64.0/source/boost_1_64_0.tar.gz'
+wget 'https://boostorg.jfrog.io/artifactory/main/release/1.64.0/source/boost_1_64_0.tar.gz'
 echo "Unziping boost..."
 tar xzf boost_1_64_0.tar.gz
 export BOOST_BUILD_PATH="/root/boost_1_64_0/tools/build"
