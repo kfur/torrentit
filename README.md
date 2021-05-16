@@ -10,7 +10,6 @@ Run `./build-lt.sh` script to build libtorrent. Then copy `./boost_1_64_0/bin.v2
 
 # Running
 Run `cd src; python3 main.py`.
-For running required phone number for bypassing telegram bot api upload files limitation to 50 MB.
 
 Set the following enviroment variables:
   1. Bot token(from Bot Father):
